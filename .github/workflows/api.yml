@@ -1,0 +1,73 @@
+name: API CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/api.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - '.github/workflows/api.yml'
+
+jobs:
+  quality:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          working-directory: apps/api
+          cache-dependency-glob: apps/api/uv.lock
+      - name: Install Python 3.14
+        working-directory: apps/api
+        run: uv python install 3.14
+      - name: Sync dependencies
+        working-directory: apps/api
+        run: uv sync --extra dev --locked
+      - name: ruff check
+        working-directory: apps/api
+        run: uv run ruff check .
+      - name: mypy
+        working-directory: apps/api
+        run: uv run mypy app
+      - name: pytest
+        working-directory: apps/api
+        run: uv run pytest -v
+
+  sbom-scan:
+    name: SBOM + Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: quality
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./apps/api
+          format: spdx-json
+          output-file: sbom-api.spdx.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-sbom
+          path: sbom-api.spdx.json
+      - name: Scan with Grype
+        uses: anchore/scan-action@v7
+        with:
+          sbom: sbom-api.spdx.json
+          fail-build: false
+          output-format: sarif
+          output-file: results.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ./results.sarif

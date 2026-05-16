@@ -1,0 +1,11 @@
+useNodeVersion: 24.15.0
+managePackageManagerVersions: true
+
+packages:
+  - apps/web
+
+onlyBuiltDependencies:
+  - esbuild
+
+allowBuilds:
+  esbuild: true

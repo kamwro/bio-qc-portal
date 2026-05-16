@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: bio-qc-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-bio_qc_portal}
+    ports:
+      - '${DB_PORT:-5433}:5432'
+    volumes:
+      - postgres-data:/var/lib/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-postgres}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bio-qc
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: bio-qc-api
+    ports:
+      - '${API_PORT:-8000}:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-bio_qc_portal}
+      CORS_ORIGINS: '["http://localhost:5173"]'
+    volumes:
+      - ./apps/api:/app
+    networks:
+      - bio-qc
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    container_name: bio-qc-web
+    ports:
+      - '${WEB_PORT:-5173}:5173'
+    depends_on:
+      - api
+    environment:
+      API_TARGET: http://api:8000
+    volumes:
+      - ./apps/web:/app/apps/web
+      - /app/apps/web/node_modules
+    networks:
+      - bio-qc
+
+volumes:
+  postgres-data:
+
+networks:
+  bio-qc:
+    driver: bridge

@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+coverage
+test-results
+.claude
+.junie
+.venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+apps/api/alembic/versions
