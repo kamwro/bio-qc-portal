@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.models.run import SequencingRun
 from app.models.sample import Sample
 from app.repositories.run import RunRepository
 from app.repositories.sample import SampleRepository
@@ -16,7 +17,7 @@ class SampleService:
         self.repo = SampleRepository(db)
         self.run_repo = RunRepository(db)
 
-    def _get_run_or_404(self, run_id: str):  # type: ignore[return]
+    def _get_run_or_404(self, run_id: str) -> SequencingRun:
         run = self.run_repo.get_by_id(run_id)
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")
@@ -56,11 +57,11 @@ class SampleService:
             fail_count=counts["FAIL"],
         )
 
-    def list_samples(self, run_id: str) -> list[type[Sample]]:
+    def list_samples(self, run_id: str) -> list[Sample]:
         self._get_run_or_404(run_id)
         return self.repo.get_by_run(run_id)
 
-    def get_sample(self, sample_id: str) -> type[Sample]:
+    def get_sample(self, sample_id: str) -> Sample:
         sample = self.repo.get_by_id(sample_id)
         if sample is None:
             raise HTTPException(status_code=404, detail="Sample not found")

@@ -12,12 +12,12 @@ class RunService:
         self.repo = RunRepository(db)
         self.project_repo = ProjectRepository(db)
 
-    def list_runs(self, project_id: str) -> list[type[SequencingRun]]:
+    def list_runs(self, project_id: str) -> list[SequencingRun]:
         if self.project_repo.get_by_id(project_id) is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return self.repo.get_by_project(project_id)
 
-    def get_run(self, run_id: str) -> type[SequencingRun]:
+    def get_run(self, run_id: str) -> SequencingRun:
         run = self.repo.get_by_id(run_id)
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")

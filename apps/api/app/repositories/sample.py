@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.qc_metric import QCMetric
@@ -8,22 +9,22 @@ class SampleRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def get_by_run(self, run_id: str) -> list[type[Sample]]:
-        return (
-            self.db.query(Sample)
+    def get_by_run(self, run_id: str) -> list[Sample]:
+        stmt = (
+            select(Sample)
             .options(joinedload(Sample.qc_metric))
-            .filter(Sample.run_id == run_id)
+            .where(Sample.run_id == run_id)
             .order_by(Sample.sample_name)
-            .all()
         )
+        return list(self.db.scalars(stmt).all())
 
-    def get_by_id(self, sample_id: str) -> type[Sample] | None:
-        return (
-            self.db.query(Sample)
+    def get_by_id(self, sample_id: str) -> Sample | None:
+        stmt = (
+            select(Sample)
             .options(joinedload(Sample.qc_metric))
-            .filter(Sample.id == sample_id)
-            .first()
+            .where(Sample.id == sample_id)
         )
+        return self.db.scalars(stmt).first()
 
     def create_with_metric(
         self,
@@ -58,7 +59,8 @@ class SampleRepository:
         return sample
 
     def delete_by_run(self, run_id: str) -> None:
-        samples = self.db.query(Sample).filter(Sample.run_id == run_id).all()
+        stmt = select(Sample).where(Sample.run_id == run_id)
+        samples = self.db.scalars(stmt).all()
         for s in samples:
             self.db.delete(s)
         self.db.commit()
