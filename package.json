@@ -9,6 +9,7 @@
     "dev:web": "pnpm --filter web dev",
     "build:web": "pnpm --filter web build",
     "typecheck:web": "pnpm --filter web typecheck",
+    "typecheck:api": "cd apps/api && uv run mypy app",
     "format:web": "prettier --write \"apps/web/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:repo": "prettier --write \"*.{json,md,yml,yaml}\" \".github/**/*.{yml,yaml}\" \"docs/**/*.{md,yml,yaml}\"",
     "format:api": "cd apps/api && uv run ruff format .",
