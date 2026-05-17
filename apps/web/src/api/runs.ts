@@ -38,3 +38,20 @@ export function useImportSamples(runId: string) {
     },
   });
 }
+
+export function useImportFiles(runId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (formData: FormData) =>
+      apiClient
+        .post(`/runs/${runId}/import/files`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['runs', runId] });
+      qc.invalidateQueries({ queryKey: ['runs', runId, 'samples'] });
+      qc.invalidateQueries({ queryKey: ['runs', runId, 'qc-summary'] });
+    },
+  });
+}

@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
@@ -9,6 +10,8 @@ from app.repositories.run import RunRepository
 from app.repositories.sample import SampleRepository
 from app.schemas.qc_metric import ImportRequest, ImportResponse, QCSummary
 from app.schemas.sample import RunReport
+from app.services.parsers.manifest_csv import parse_manifest_csv
+from app.services.parsers.multiqc_json import parse_multiqc_like_json
 from app.services.qc import calculate_qc_status
 
 
@@ -56,6 +59,66 @@ class SampleService:
             warn_count=counts["WARN"],
             fail_count=counts["FAIL"],
         )
+
+    def import_from_files(
+        self,
+        run_id: str,
+        manifest_content: str,
+        qc_content: str,
+        qc_format: str,
+    ) -> ImportResponse:
+        """Parse a manifest CSV and QC JSON file, then import matched samples.
+
+        Only samples whose sample_name appears in both the manifest and the QC
+        file are imported. Raises 422 if either file is invalid or nothing matches.
+        """
+        self._get_run_or_404(run_id)
+
+        try:
+            manifest_rows = parse_manifest_csv(manifest_content)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"Manifest CSV error: {exc}"
+            ) from exc
+
+        manifest_names = {row.sample_name for row in manifest_rows}
+
+        try:
+            raw = json.loads(qc_content)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"QC file is not valid JSON: {exc}"
+            ) from exc
+
+        try:
+            if qc_format == "multiqc_like":
+                qc_items = parse_multiqc_like_json(raw)
+            elif qc_format == "simple_json":
+                qc_items = ImportRequest.model_validate(raw).samples
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Unknown qc_format '{qc_format}'. "
+                        "Use 'simple_json' or 'multiqc_like'."
+                    ),
+                )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"QC file error: {exc}"
+            ) from exc
+
+        matched = [item for item in qc_items if item.sample_name in manifest_names]
+        if not matched:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No QC samples matched the manifest. "
+                    "Check that sample_name values are consistent between both files."
+                ),
+            )
+
+        return self.import_samples(run_id, ImportRequest(samples=matched))
 
     def list_samples(self, run_id: str) -> list[Sample]:
         self._get_run_or_404(run_id)

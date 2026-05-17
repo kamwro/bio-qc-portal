@@ -47,6 +47,7 @@ BioQC Portal is a full-stack application for reviewing NGS sequencing run qualit
 - Define persistent tables in `apps/api/app/models/`.
 - Define request and response contracts in `apps/api/app/schemas/`.
 - Keep QC threshold logic pure and tested in `apps/api/app/services/qc.py`.
+- Keep file parsers in `apps/api/app/services/parsers/`. Each parser is a standalone function with no DB access; raise `ValueError` on bad input.
 - Add or update Alembic migrations under `apps/api/alembic/versions/` when models change.
 - Prefer typed SQLAlchemy 2.x `Mapped[]` model declarations, matching existing models.
 
@@ -57,6 +58,15 @@ BioQC Portal is a full-stack application for reviewing NGS sequencing run qualit
 - Keep page-level composition in `apps/web/src/pages/` and reusable UI in `apps/web/src/components/`.
 - Match the existing dashboard style before introducing new visual patterns.
 - When API response shapes change, update frontend types, API clients, and affected components together.
+
+## Import Paths
+
+There are two import endpoints:
+
+1. `POST /api/runs/{run_id}/import` — accepts a JSON body (`ImportRequest`), the simple format.
+2. `POST /api/runs/{run_id}/import/files` — accepts multipart form-data with a manifest CSV (`manifest_file`), a QC JSON (`qc_file`), and a format selector (`qc_format`: `simple_json` | `multiqc_like`).
+
+The file-based endpoint parses each file with the parsers in `services/parsers/`, then calls `import_samples()` with only the samples whose `sample_name` appears in both files.
 
 ## Data And Privacy
 

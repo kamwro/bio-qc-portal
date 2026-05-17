@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQCSummary, useRun } from '../api/runs';
 import { useSamples } from '../api/samples';
+import FileImportForm from '../components/FileImportForm';
 import ImportForm from '../components/ImportForm';
 import QCCharts from '../components/QCCharts';
 import SampleTable from '../components/SampleTable';
@@ -9,6 +10,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useProject } from '../api/projects';
 
 type Tab = 'import' | 'samples' | 'charts';
+type ImportMode = 'json' | 'files';
 
 function SummaryCard({
   label,
@@ -37,6 +39,7 @@ export default function RunDetailPage() {
 
   const hasData = (summary?.total_samples ?? 0) > 0;
   const [tab, setTab] = useState<Tab>(hasData ? 'samples' : 'import');
+  const [importMode, setImportMode] = useState<ImportMode>('files');
 
   if (isLoading) return <p className="text-gray-400 text-sm">Loading…</p>;
   if (!run) return <p className="text-red-600 text-sm">Run not found.</p>;
@@ -110,12 +113,55 @@ export default function RunDetailPage() {
       {tab === 'import' && (
         <div className="bg-white border border-gray-200 rounded-xl p-6">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Import QC data</h2>
-          <p className="text-sm text-gray-500 mb-5">
-            Paste a JSON payload containing sample metrics. See{' '}
-            <code className="bg-gray-100 px-1 rounded text-xs">samples/qc_metrics.json</code> for
-            the expected format, or use <strong>make api-seed</strong> to load the demo dataset.
-          </p>
-          <ImportForm runId={runId!} onSuccess={handleImportSuccess} />
+
+          {/* Import mode toggle */}
+          <div className="flex gap-1 mb-5 bg-gray-100 rounded-lg p-1 w-fit">
+            {(
+              [
+                { key: 'files', label: 'Upload files' },
+                { key: 'json', label: 'Paste JSON' },
+              ] as { key: ImportMode; label: string }[]
+            ).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setImportMode(key)}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  importMode === key
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {importMode === 'files' && (
+            <>
+              <p className="text-sm text-gray-500 mb-5">
+                Upload a sample manifest CSV and a QC metrics JSON file. Only samples present in
+                both files will be imported. Use{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">samples/sample_manifest.csv</code>{' '}
+                and{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">samples/multiqc_like_data.json</code>{' '}
+                as examples.
+              </p>
+              <FileImportForm runId={runId!} onSuccess={handleImportSuccess} />
+            </>
+          )}
+
+          {importMode === 'json' && (
+            <>
+              <p className="text-sm text-gray-500 mb-5">
+                Paste a JSON payload containing sample metrics. See{' '}
+                <code className="bg-gray-100 px-1 rounded text-xs">samples/qc_metrics.json</code>{' '}
+                for the expected format, or use <strong>make api-seed</strong> to load the demo
+                dataset.
+              </p>
+              <ImportForm runId={runId!} onSuccess={handleImportSuccess} />
+            </>
+          )}
         </div>
       )}
 

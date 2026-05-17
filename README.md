@@ -10,7 +10,7 @@ It pairs a Python/FastAPI backend, React/Vite frontend, PostgreSQL persistence, 
 
 1. **Manage projects** — group sequencing runs under named research projects.
 2. **Track sequencing runs** — record runs with platform info (e.g. Illumina NovaSeq 6000).
-3. **Import QC data** — POST a JSON payload with per-sample metrics (Q30, GC content, duplication rate, adapter content, total reads).
+3. **Import QC data** — three import paths (see below).
 4. **Automatic QC classification** — each sample is classified as **PASS / WARN / FAIL** based on configurable thresholds.
 5. **Dashboard** — per-run summary cards, sample table with status filter, and four charts (status distribution, Q30, GC content, duplication rate).
 6. **Reports** — JSON report endpoint with aggregate stats and worst-performing samples.
@@ -234,7 +234,8 @@ GET  /api/projects/{project_id}/runs
 POST /api/projects/{project_id}/runs
 GET  /api/runs/{run_id}
 
-POST /api/runs/{run_id}/import
+POST /api/runs/{run_id}/import           — JSON body (simple format)
+POST /api/runs/{run_id}/import/files     — multipart: manifest CSV + QC JSON
 GET  /api/runs/{run_id}/samples
 GET  /api/runs/{run_id}/qc-summary
 GET  /api/runs/{run_id}/report
@@ -244,14 +245,71 @@ GET  /api/samples/{sample_id}
 
 ---
 
+## Import options
+
+There are three ways to get QC data into a run:
+
+### 1. File upload (UI) — recommended
+
+Open a run's **Import** tab in the browser and choose **Upload files**:
+
+1. Select a **manifest CSV** (`samples/sample_manifest.csv` as example) with columns:
+   `sample_name, organism, assay_type`
+2. Select a **QC metrics JSON** file and pick the format:
+   - **MultiQC-like JSON** (`samples/multiqc_like_data.json`) — realistic external-tool format
+   - **Simple JSON** (`samples/qc_metrics.json`) — internal flat format
+3. Click **Import files**. Only samples present in _both_ files are imported.
+
+### 2. JSON paste (UI)
+
+Open a run's **Import** tab, choose **Paste JSON**, and paste a payload like:
+
+```json
+{
+  "samples": [
+    {
+      "sample_name": "SAMP001",
+      "total_reads": 50000000,
+      "q30_score": 85.2,
+      "gc_content": 48.5,
+      "duplication_rate": 12.3,
+      "adapter_content": 1.8,
+      "mean_read_quality": 37.1
+    }
+  ]
+}
+```
+
+### 3. curl / API
+
+**Simple JSON** (existing endpoint):
+
+```bash
+curl -X POST http://localhost:8000/api/runs/{run_id}/import \
+  -H "Content-Type: application/json" \
+  -d @samples/qc_metrics.json
+```
+
+**File upload** (multipart):
+
+```bash
+curl -X POST http://localhost:8000/api/runs/{run_id}/import/files \
+  -F "manifest_file=@samples/sample_manifest.csv;type=text/csv" \
+  -F "qc_file=@samples/multiqc_like_data.json;type=application/json" \
+  -F "qc_format=multiqc_like"
+```
+
+---
+
 ## Sample data
 
 `samples/` contains realistic but entirely synthetic NGS QC data (no patient/clinical data):
 
-| File                          | Description                                       |
-| ----------------------------- | ------------------------------------------------- |
-| `samples/sample_manifest.csv` | 20 sample names + external IDs + library metadata |
-| `samples/qc_metrics.json`     | Per-sample QC metrics ready to POST to `/import`  |
+| File                             | Description                                                  |
+| -------------------------------- | ------------------------------------------------------------ |
+| `samples/sample_manifest.csv`    | 20 samples with `sample_name, organism, assay_type` columns  |
+| `samples/qc_metrics.json`        | 20-sample QC metrics in simple JSON format (used by seed)    |
+| `samples/multiqc_like_data.json` | 10-sample QC metrics in MultiQC-like JSON format             |
 
 The `make api-seed` command creates a demo project, a run, and imports all 20 samples automatically.
 
@@ -291,13 +349,11 @@ make web-lint        # ESLint
 
 ## Future improvements
 
-- [ ] CSV file upload for sample manifest (currently JSON-only import)
 - [ ] Pagination on sample lists for large runs
 - [ ] User authentication (JWT)
 - [ ] Configurable QC thresholds per project
 - [ ] Export run report as PDF
 - [ ] WebSocket live updates during import
-- [ ] Real MultiQC JSON parser as an import source
 - [ ] Playwright E2E tests
 - [ ] Helm chart / Kubernetes deployment
 
