@@ -137,3 +137,144 @@ def test_get_sample(client: TestClient, run_id: str):
     r = client.get(f"/api/samples/{sample_id}")
     assert r.status_code == 200
     assert "qc_metric" in r.json()
+
+
+# ── File-based import ──────────────────────────────────────────────────────────
+
+MANIFEST_CSV = """sample_name,organism,assay_type
+S001,Homo sapiens,WGS
+S002,Homo sapiens,WGS
+"""
+
+SIMPLE_JSON_FILE = """{
+  "samples": [
+    {
+      "sample_name": "S001",
+      "total_reads": 50000000,
+      "q30_score": 85.0,
+      "gc_content": 50.0,
+      "duplication_rate": 10.0,
+      "adapter_content": 1.5,
+      "mean_read_quality": 37.0
+    },
+    {
+      "sample_name": "S002",
+      "total_reads": 40000000,
+      "q30_score": 75.0,
+      "gc_content": 50.0,
+      "duplication_rate": 10.0,
+      "adapter_content": 1.5,
+      "mean_read_quality": 35.0
+    }
+  ]
+}"""
+
+MULTIQC_LIKE_FILE = """{
+  "report_generated_on": "2024-01-15",
+  "samples": {
+    "S001": {
+      "total_sequences": 50000000,
+      "percent_above_q30": 85.0,
+      "percent_gc": 50.0,
+      "percent_duplicates": 10.0,
+      "adapter_content": 1.5,
+      "mean_quality_score": 37.0
+    },
+    "S002": {
+      "total_sequences": 40000000,
+      "percent_above_q30": 75.0,
+      "percent_gc": 50.0,
+      "percent_duplicates": 10.0,
+      "adapter_content": 1.5,
+      "mean_quality_score": 35.0
+    }
+  }
+}"""
+
+
+def _file_import(client: TestClient, run_id: str, qc_body: str, qc_format: str):
+    return client.post(
+        f"/api/runs/{run_id}/import/files",
+        files={
+            "manifest_file": ("manifest.csv", MANIFEST_CSV, "text/csv"),
+            "qc_file": ("qc.json", qc_body, "application/json"),
+        },
+        data={"qc_format": qc_format},
+    )
+
+
+def test_file_import_simple_json(client: TestClient, run_id: str):
+    r = _file_import(client, run_id, SIMPLE_JSON_FILE, "simple_json")
+    assert r.status_code == 201
+    body = r.json()
+    assert body["imported"] == 2
+    assert body["pass_count"] + body["warn_count"] + body["fail_count"] == 2
+
+
+def test_file_import_multiqc_like(client: TestClient, run_id: str):
+    r = _file_import(client, run_id, MULTIQC_LIKE_FILE, "multiqc_like")
+    assert r.status_code == 201
+    body = r.json()
+    assert body["imported"] == 2
+
+
+def test_file_import_filters_by_manifest(client: TestClient, run_id: str):
+    # Manifest only has S001; QC file has S001 and S002 — only S001 should import
+    manifest = "sample_name,organism,assay_type\nS001,Homo sapiens,WGS\n"
+    r = client.post(
+        f"/api/runs/{run_id}/import/files",
+        files={
+            "manifest_file": ("manifest.csv", manifest, "text/csv"),
+            "qc_file": ("qc.json", MULTIQC_LIKE_FILE, "application/json"),
+        },
+        data={"qc_format": "multiqc_like"},
+    )
+    assert r.status_code == 201
+    assert r.json()["imported"] == 1
+
+
+def test_file_import_invalid_manifest_columns(client: TestClient, run_id: str):
+    bad_manifest = "sample_name,wrong_col\nS001,foo\n"
+    r = client.post(
+        f"/api/runs/{run_id}/import/files",
+        files={
+            "manifest_file": ("manifest.csv", bad_manifest, "text/csv"),
+            "qc_file": ("qc.json", MULTIQC_LIKE_FILE, "application/json"),
+        },
+        data={"qc_format": "multiqc_like"},
+    )
+    assert r.status_code == 422
+    assert "Manifest CSV error" in r.json()["detail"]
+
+
+def test_file_import_no_matching_samples(client: TestClient, run_id: str):
+    manifest = "sample_name,organism,assay_type\nNOT_IN_QC,Homo sapiens,WGS\n"
+    r = client.post(
+        f"/api/runs/{run_id}/import/files",
+        files={
+            "manifest_file": ("manifest.csv", manifest, "text/csv"),
+            "qc_file": ("qc.json", MULTIQC_LIKE_FILE, "application/json"),
+        },
+        data={"qc_format": "multiqc_like"},
+    )
+    assert r.status_code == 422
+    assert "No QC samples matched" in r.json()["detail"]
+
+
+def test_file_import_unknown_format(client: TestClient, run_id: str):
+    r = _file_import(client, run_id, SIMPLE_JSON_FILE, "unknown_format")
+    assert r.status_code == 422
+    assert "Unknown qc_format" in r.json()["detail"]
+
+
+def test_file_import_invalid_json_qc_file(client: TestClient, run_id: str):
+    r = client.post(
+        f"/api/runs/{run_id}/import/files",
+        files={
+            "manifest_file": ("manifest.csv", MANIFEST_CSV, "text/csv"),
+            "qc_file": ("qc.json", "not valid json{{{", "application/json"),
+        },
+        data={"qc_format": "simple_json"},
+    )
+    assert r.status_code == 422
+    assert "not valid JSON" in r.json()["detail"]

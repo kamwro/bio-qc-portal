@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 
 from app.api.deps import get_run_service, get_sample_service
 from app.schemas.qc_metric import ImportRequest, ImportResponse, QCSummary
@@ -27,6 +27,23 @@ def get_run(run_id: str, svc: RunServiceDep):
 )
 def import_samples(run_id: str, body: ImportRequest, svc: SampleServiceDep):
     return svc.import_samples(run_id, body)
+
+
+@router.post(
+    "/{run_id}/import/files",
+    response_model=ImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_samples_from_files(
+    run_id: str,
+    svc: SampleServiceDep,
+    manifest_file: UploadFile = File(..., description="Sample manifest CSV (sample_name, organism, assay_type)"),
+    qc_file: UploadFile = File(..., description="QC metrics JSON file"),
+    qc_format: str = Form("simple_json", description="'simple_json' or 'multiqc_like'"),
+):
+    manifest_content = (await manifest_file.read()).decode("utf-8")
+    qc_content = (await qc_file.read()).decode("utf-8")
+    return svc.import_from_files(run_id, manifest_content, qc_content, qc_format)
 
 
 @router.get("/{run_id}/samples", response_model=list[SampleResponse])
