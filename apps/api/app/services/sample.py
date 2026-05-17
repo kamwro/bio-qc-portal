@@ -77,14 +77,18 @@ class SampleService:
         try:
             manifest_rows = parse_manifest_csv(manifest_content)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=f"Manifest CSV error: {exc}") from exc
+            raise HTTPException(
+                status_code=422, detail=f"Manifest CSV error: {exc}"
+            ) from exc
 
         manifest_names = {row.sample_name for row in manifest_rows}
 
         try:
             raw = json.loads(qc_content)
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=422, detail=f"QC file is not valid JSON: {exc}") from exc
+            raise HTTPException(
+                status_code=422, detail=f"QC file is not valid JSON: {exc}"
+            ) from exc
 
         try:
             if qc_format == "multiqc_like":
@@ -94,10 +98,15 @@ class SampleService:
             else:
                 raise HTTPException(
                     status_code=422,
-                    detail=f"Unknown qc_format '{qc_format}'. Use 'simple_json' or 'multiqc_like'.",
+                    detail=(
+                        f"Unknown qc_format '{qc_format}'. "
+                        "Use 'simple_json' or 'multiqc_like'."
+                    ),
                 )
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=f"QC file error: {exc}") from exc
+            raise HTTPException(
+                status_code=422, detail=f"QC file error: {exc}"
+            ) from exc
 
         matched = [item for item in qc_items if item.sample_name in manifest_names]
         if not matched:

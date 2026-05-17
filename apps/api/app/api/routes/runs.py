@@ -14,6 +14,13 @@ router = APIRouter()
 RunServiceDep = Annotated[RunService, Depends(get_run_service)]
 SampleServiceDep = Annotated[SampleService, Depends(get_sample_service)]
 
+ManifestFileDep = Annotated[
+    UploadFile,
+    File(description="Sample manifest CSV (sample_name, organism, assay_type)"),
+]
+QCFileDep = Annotated[UploadFile, File(description="QC metrics JSON file")]
+QCFormatDep = Annotated[str, Form(description="'simple_json' or 'multiqc_like'")]
+
 
 @router.get("/{run_id}", response_model=RunResponse)
 def get_run(run_id: str, svc: RunServiceDep):
@@ -37,9 +44,9 @@ def import_samples(run_id: str, body: ImportRequest, svc: SampleServiceDep):
 async def import_samples_from_files(
     run_id: str,
     svc: SampleServiceDep,
-    manifest_file: UploadFile = File(..., description="Sample manifest CSV (sample_name, organism, assay_type)"),
-    qc_file: UploadFile = File(..., description="QC metrics JSON file"),
-    qc_format: str = Form("simple_json", description="'simple_json' or 'multiqc_like'"),
+    manifest_file: ManifestFileDep,
+    qc_file: QCFileDep,
+    qc_format: QCFormatDep = "simple_json",
 ):
     manifest_content = (await manifest_file.read()).decode("utf-8")
     qc_content = (await qc_file.read()).decode("utf-8")
