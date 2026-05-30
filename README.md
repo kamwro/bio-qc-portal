@@ -2,6 +2,8 @@
 
 A web application for reviewing NGS sequencing run quality. Upload sample manifests and QC metric files, then explore per-sample quality dashboards with charts, filters, and summary reports.
 
+Please see the related project, bioinformatics workflow platform for Python CLI + Nextflow setup: [kamwro/bioinformatics-workflow-platform](https://github.com/kamwro/bioinformatics-workflow-platform).
+
 It pairs a Python/FastAPI backend, React/Vite frontend, PostgreSQL persistence, clean architecture, and CI workflows in a life sciences context.
 
 ---
